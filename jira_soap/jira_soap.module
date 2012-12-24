@@ -3,7 +3,7 @@
 //JIRA CONFIGURATION
 define('JIRA_SOAP_SERVER', 'http://localhost:9080/rpc/soap/jirasoapservice-v2?wsdl');
 define('JIRA_SOAP_USERNAME', 'dodo');
-define('JIRA_SOAP_PASSWORD', 'rahasia');
+define('JIRA_SOAP_PASSWORD', 'password');
 
 //GET DRUPAL USERNAME
 global $user;
