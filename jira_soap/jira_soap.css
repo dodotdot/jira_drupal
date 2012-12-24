@@ -1,0 +1,44 @@
+/*
+* ISSUE DETAILS
+*/
+.tablediv {
+display:  table;
+width:100%;
+border-spacing:5px;/*cellspacing:poor IE support for  this*/
+border-collapse:separate;
+font-size: 14px;
+font-family: arial;
+}
+.celldiv {
+float:left;
+display:  table-cell;
+width:15%;
+}
+.rowdiv  {
+display:  table-row;
+width:auto;
+}
+.red{
+color:red;	
+}
+
+/*
+* COMMENT 
+*/
+.comment-even {
+background-color: #eee;
+padding: 5px 10px 10px 10px;
+width: 50%;
+}
+
+.comment-odd {
+background-color: #fff;
+padding: 5px 10px 10px 10px;
+width: 50%;
+}
+
+.header-comment{
+font-size: 11px;
+font-style: italic;
+color:#8F8F8F;
+}

@@ -1,0 +1,791 @@
+<?php
+// $Id$
+//JIRA CONFIGURATION
+define('JIRA_SOAP_SERVER', 'http://localhost:9080/rpc/soap/jirasoapservice-v2?wsdl');
+define('JIRA_SOAP_USERNAME', 'dodo');
+define('JIRA_SOAP_PASSWORD', 'rahasia');
+
+//GET DRUPAL USERNAME
+global $user;
+if ($user->uid){ 
+	define('DRUPAL_USERNAME', $user->name);
+}
+	
+/*
+* HOOK PERMISSION
+*/
+function jira_soap_perm() {
+  return array('jira_soap user');
+} 
+
+/*
+* HOOK MENU 
+*/
+function jira_soap_menu(){
+	 
+   $items['jira_soap'] = array( 
+	'title' => 'Issues',
+	'description' => 'Adjust node annotation options.',
+	'page callback' => 'jira_soap_page',
+	'page arguments' => array(0),
+	'access callback' => TRUE,
+	'access arguments' => array('jira_soap user'),
+	'type' => MENU_NORMAL_ITEM,
+    );
+   $items['jira_soap/issue'] = array( 
+	'description' => 'Details of issue',
+	'page callback' => 'jira_page_issue',
+	'access callback' => TRUE,	
+	'access arguments' => array('jira_soap user'),
+    );
+   $items['jira_soap/create'] = array(
+	'description' => 'create issue',
+	'page callback' => 'jira_page_issue_create',
+	'page arguments' => array(0),
+	'access callback' => TRUE,
+	'access arguments' => array('jira_soap user'),
+	);
+   $items['jira_soap/edit'] = array(
+	'description' => 'Edit issue',
+	'page callback' => 'jira_page_issue_edit',
+	'page arguments' => array(0),
+	'access callback' => TRUE,
+  	'access arguments' => array('jira_soap user'),
+	);
+   $items['jira_soap/delete'] = array( 
+	'description' => 'Delete issue',
+	'page callback' => 'jira_page_issue_del',
+	'access callback' => TRUE,	
+	'access arguments' => array('jira_soap user'),
+    );
+return $items;
+}
+
+/*
+* HOOK FORM ISSUE
+*/
+function jira_page_issue_create() {
+	  $output.="<h1>Create Issue</h1>";
+	  $nav1 = l("Issue", "jira_soap", array('attributes' => array('title'=>'Back to List Issue'), 'absolute' => TRUE, 'html' => TRUE));
+      $nav2 = l("Create Issue", "jira_soap/create", array('attributes' => array('title'=>'Create Issue'), 'absolute' => TRUE, 'html' => TRUE));
+	  $output.= $nav1." >> ".$nav2;
+	  $output.= drupal_get_form('jira_page_issue_create_form');
+	  return $output;
+}
+
+/*
+* HOOK CREATE ISSUE FORM 
+*/
+function jira_page_issue_create_form() {
+	  $form['project'] = array(
+	    '#type' => 'textfield',
+	    '#title' => t('Projects'),
+ 	    '#value' => t('BIGBANG'),
+ 	    '#attributes' => array('disabled' => 'disabled'),
+	    '#size' => 20, 
+	  );
+	   $form['type'] = array(
+	    '#type' => 'textfield',
+	    '#title' => t('Issue Types'),
+ 	    '#value' => t('Services Request'),
+ 	    '#attributes' => array('disabled' => 'disabled'),
+	    '#size' => 20, 
+	  );
+	  $form['summary'] = array(
+	    '#type' => 'textfield',
+	    '#title' => t('Summary'),
+	  );
+	  $form['reporter'] = array(
+	    '#type' => 'hidden',
+	    '#title' => t('reporter'),
+	    '#value' => DRUPAL_USERNAME,
+	    '#attributes' => array('disabled' => 'disabled'),
+	  );
+	  $form['assignee'] = array(
+	    '#type' => 'hidden',
+	    '#title' => t('Assignee'),
+	    '#value' => JIRA_SOAP_USERNAME,
+	    '#attributes' => array('disabled' => 'disabled'),
+	  );
+ 	  $prio = drupal_map_assoc(array(1,2,3,4,5));
+	  $form['prio'] = array(
+	    '#type' => 'select',
+	    '#options' => $prio,
+	    '#title' => t('Priority'),
+	  );
+	  $form['description'] = array(
+	    '#type' => 'textarea',
+	    '#title' => t('Description'),
+	  );
+	  $form['submit'] = array(
+	    '#type' => 'submit',
+	    '#value' => t('Save'),
+	  );
+	  return $form;
+}
+
+/*
+* VALIDATE THE FORM.
+*/
+function jira_page_issue_create_form_validate($form, $form_values) {
+   if ($form_values['values']['summary'] == '') {
+     form_set_error('summary',
+       t('field summary tdk boleh kosong'));
+   }
+}
+
+/*
+* SUBMIT ISSUE FORM.
+*/
+function jira_page_issue_create_form_submit($form, $form_values) {
+
+try{
+  $client = new SoapClient(JIRA_SOAP_SERVER);
+  $token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+
+  $form_id = $form_values['values'];
+  
+  $project = $form_id['project'];
+  $type = $form_id['type'];
+  $summary = $form_id['summary'];
+  $desc = $form_id['description'];
+  $prio = $form_id['prio'];
+  $reporter = $form_id['reporter'];
+  $assignee = $form_id['assignee'];
+
+    if ($token){
+        
+		$rIssue="";
+        $rIssue['project']  = $project;
+        $rIssue['type']     = "5";
+        $rIssue['summary']  = $summary;
+        $rIssue['description']  = $desc;
+        $rIssue['priority'] = $prio;
+        $rIssue['reporter'] = $reporter;
+		$rIssue['assignee'] = $assignee;
+
+ 
+        $issue = $client->createIssue($token, $rIssue);
+ 
+        $client->logout (JIRA_SOAP_USERNAME);
+ 
+	    }
+
+  drupal_set_message("Issue <b>".$summary."</b> telah disimpan! ");
+  drupal_goto('jira_soap');
+  
+  }catch(Exception $e){
+	  return t('SOAP ERROR jira_page_issue_create_form_submit');
+  }
+}
+
+/*
+ * PAGE CALLBACK ISSUES PAGE LIST 
+ */
+function jira_soap_page() {
+
+try{
+	
+	$client = new SoapClient(JIRA_SOAP_SERVER);
+	$token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+
+	//GET PROJECT
+	$projects = $client->getProjectsNoSchemes($token);
+	foreach ($projects as $project) {
+	    			$projects[$project->name] = $project;
+	}
+
+	// GET STATUSES
+	$result = $client->getStatuses($token);
+	$statuses = array();
+	foreach ($result as $status) {
+		    $statuses[$status->id] = $status->icon.",".$status->name;
+	}
+  
+	// GET RESOLUTION
+	$resolutions = $client->getResolutions($token);
+	$res = array();
+	foreach ($resolutions as $resolution) {
+		    $res[$resolution->id] = $resolution->name;
+	}
+	
+	// GET PRIORITY
+	$priorities = $client->getPriorities($token);
+	$pri = array();
+	foreach ($priorities as $priority) {
+		    $pri[$priority->id] = $priority->icon.",".$priority->name;
+	}
+	
+	//GET ISSUE TYPES
+	$getissueTypes = $client->getIssueTypes($token);
+	$issuetype = array();
+	foreach ($getissueTypes as $getissueType) {
+	    	  $issuetype[$getissueType->id] = $getissueType->icon.",".$getissueType->name;
+	}
+
+	//GET FULL NAME
+	$getfullnames = $client->getUser($token,JIRA_SOAP_USERNAME);
+
+	//GET FAVORITE FILTER
+	$filters = $client->getFavouriteFilters($token);
+	foreach ($filters as $filter) {
+		//GET ISSUE FROM FILTER
+	 	$issues = $client->getIssuesFromFilter($token,$filter->id);
+		$projectIssues = array();
+		foreach ($issues as $issue) {
+	    			$projectIssues[$issue->project][] = $issue;
+				}
+		foreach (array_keys($projectIssues) as $projectKey) {
+	
+		  $jumtemp= count($issues);	
+		  	for($a=0;$a<$jumtemp;$a++){
+		  		$reports[] = $issues[$a]->reporter;
+		  	}
+		  
+		  //print_r($reports); 
+		  $hitung = array_count_values($reports);
+		  
+		  if(array_key_exists(DRUPAL_USERNAME, $hitung)){
+			$jumlah = $hitung[DRUPAL_USERNAME];
+		
+		  }
+	  
+	  	//$jumlah= count($issues);
+	  	$page = isset($_GET['page']) ? $_GET['page'] : 0; 
+	  	$limit = 5; 
+	  	$no =1;			
+		
+	  	$max = ($page*$limit+$limit < $jumlah) ? $page*$limit+$limit : $jumlah;
+	  	$link_add = l("<img src='/content/files/create.png'>", "jira_soap/create", array('attributes' => array('title'=>'Create Issue'), 'absolute' => TRUE, 'html' => TRUE));
+			  
+	 	drupal_add_js(drupal_get_path('module', 'jira_soap') . '/tablesorter/jquery-latest.js');
+	 	drupal_add_js(drupal_get_path('module', 'jira_soap') . '/tablesorter/jquery.tablesorter.js');
+	 	drupal_add_css(drupal_get_path('module', 'jira_soap') .'/tablesorter/themes/red/style.css');
+	 
+		drupal_add_js('' .
+		'$(document).ready(function()'. 
+			'{ $("#myTable").tablesorter(' .
+				'{sortList: [[0,0],[1,0],[2,0],[3,0],[4,0],' .
+				'[5,0],[6,0],[7,0],[8,0],[9,0]]' .
+			'});'. 
+		 '});','inline');
+	  
+		$items.="<div align='left'>".$link_add."</div>"; 
+	 	$items.="<table id='myTable' class='tablesorter' border='0' cellpadding='0' cellspacing='1'>";
+	 	$items.="<thead>";
+	 	
+		$items.="<tr><th width='30px'>No</th>";
+		$items.="<th width='80px'>Key</th>";
+		$items.="<th width='100px'>Summary</th>";
+		$items.="<th width='100px'>Assignee</th>";
+		$items.="<th width='80px'>Priority</th>";
+		$items.="<th width='80px'>Status</th>";
+		$items.="<th width='100px'>Resolution</th>";
+		$items.="<th width='80px'>Created</th>";
+		$items.="<th width='80px'>Update</th>";
+		$items.="<th width='50px'>Action</th></tr>";
+		$items.="</thead>";
+		$items.="<tbody>";
+	
+			for($i=$page*$limit; $i<$max; $i++) {
+				foreach($projectIssues[$projectKey] as $issue) {
+				 	//GET Attachment ISSUE 
+				  	$getIssuesAttachs = $client->getAttachmentsFromIssue($token,$issue->key);
+				  	$attachIssue = array();
+				  	
+				  	foreach ($getIssuesAttachs as $getIssuesAttach) {
+				    	  $attachIssue[$getIssuesAttachs->id] = $getIssuesAttach->filename;
+					}
+					
+					$issue_id = $issue->id;
+					$link_edit = l("<img src='/content/files/b_edit.png'>", "jira_soap/edit/$issue_id", array('attributes' => array('title'=>'Edit Issue'), 'absolute' => TRUE, 'html' => TRUE));
+					$link_del = l("<img src='/content/files/b_drop.png'>", "jira_soap/delete/$issue_id", array('attributes' => array('title'=>'Hapus Issue'), 'absolute' => TRUE, 'html' => TRUE));	
+					//print_r($issue);
+					if(($issue->duedate == NULL)&&($attachIssue[$issue->filename]== NULL)&&($res[$issue->resolution]==NULL)){
+						$duedate = "-";
+						$attIssue ="-";
+						$reso ="UNRESOLVED";	
+					}else{
+						$attIssue =$attachIssue[$issue->filename];
+						$duedate = format_date(strtotime($issue->duedate),'custom','d/m/Y');
+						$reso =$res[$issue->resolution];	
+					}
+					
+					if($issue->reporter== DRUPAL_USERNAME){
+						$rows[]=array(
+							'no'=>$no,
+							'key'=>l($issue->key,"jira_soap/issue/".$issue_id),
+							'sum'=>l($issue->summary,"jira_soap/issue/".$issue_id), 
+							'ass'=>$issue->assignee,
+							'pri'=>$pri[$issue->priority],
+							'sta'=>$statuses[$issue->status],
+							'res'=>$reso,
+							'cre'=>format_date(strtotime($issue->created),'custom','d/m/Y'),
+							'upd'=>format_date(strtotime($issue->updated),'custom','d/m/Y'),
+							'act'=>$link_edit
+							);
+						$no++;
+					}
+				}
+						
+				//ZEBRA ROWS
+				if($i%2==0){
+				  $items .="<tr class='odd'>";	
+				}else{
+				  $items .="<tr class='even'>";
+				}
+				
+				//icon types
+				$priex = explode(",",$rows[$i]['pri']);
+				$prior = str_replace("8080","9080",$priex[0]);
+				
+				//icon priority
+				$typ = explode(",",$rows[$i]['type']);
+				$typs = str_replace("8080","9080",$typ[0]);
+				
+				//icon status
+				$sta = explode(",",$rows[$i]['sta']);
+				$stat = str_replace("8080","9080",$sta[0]);
+				
+				$items .="<td align='left'>".$rows[$i]['no']."</td>";
+				$items .="<td align='left'>". $rows[$i]['key'] ."</td>";
+				$items .="<td align='left'>". $rows[$i]['sum'] ."</td>";
+				$items .="<td align='left'>". $rows[$i]['ass'] ."</td>";
+				$items .="<td><img src='".$prior."'> ". $priex[1]."</td>";
+				$items .="<td><img src='".$stat."'> ". $sta[1]."</td>";
+				$items .="<td>". $rows[$i]['res']."</td>";
+				$items .="<td>". $rows[$i]['cre']."</td>";
+				$items .="<td>". $rows[$i]['upd']."</td>";
+				$items .="<td align='center'>". $rows[$i]['act']."</td>";
+				$items .="</tr>";
+			}	
+			$items.="</tbody>";	
+			$items.="</table>";
+			
+			//$items.="<iframe name='myiframe' scrolling='Yes' id='iframe' marginheight='1' marginwidth='1' height='200' width='100%'></iframe>";
+		  	$items.="<h4>Total Issues (".$jumlah.")</h4>";
+			global $pager_page_array, $pager_total; 
+			$pager_page_array = explode(',', $page); 
+			$pager_total[0] = ceil($jumlah) / $limit; 
+			
+			$items .= theme('pager', NULL, $limit);
+			}
+		} 
+	 	return $items;
+	
+	}catch(Exception $e){
+		return t('SOAP ERROR jira_soap_page');
+	}
+}
+
+/*
+ * PAGE CALLBACK ISSUE DETAILS 
+ */
+function jira_page_issue() {
+$id= arg(2);
+
+try{
+	
+$client = new SoapClient(JIRA_SOAP_SERVER);
+$token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+
+//GET ISSUE BY ID
+$issues = $client->getIssueById($token,arg(2));
+//print_r($issues);
+//GET FULLNAME
+$getfullnames = $client->getUser($token,JIRA_SOAP_USERNAME);
+$fullname = array();
+  foreach ($getfullnames as $getfullname) {
+    	  $fullname[$getfullnames->name] = $getfullnames->fullname;
+}
+
+//GET ISSUE TYPE
+$getissueTypes = $client->getIssueTypes($token);
+$issuetype = array();
+  foreach ($getissueTypes as $getissueType) {
+    	  $issuetype[$getissueType->id] = $getissueType->icon.",".$getissueType->name;
+}
+//print_r($getissueTypes);
+//GET Status
+$result = $client->getStatuses($token);
+$statuses = array();
+foreach ($result as $status) {
+    $statuses[$status->id] = $status->icon.",".$status->name;
+}
+
+// GET RESOLUTION
+$resolutions = $client->getResolutions($token);
+$res = array();
+foreach ($resolutions as $resolution) {
+    $res[$resolution->id] = $resolution->name;
+}
+
+// GET PRIORITY
+$priorities = $client->getPriorities($token);
+$pri = array();
+foreach ($priorities as $priority) {
+	    $pri[$priority->id] = $priority->icon.",".$priority->name;
+}
+drupal_add_css(drupal_get_path('module', 'jira_soap') .'/jira_soap.css');
+
+	$title = "<b>Issue Details Description</b>";
+	$title2 = "<b>People</b>";
+	
+	//icon priority
+	$priex = explode(",",$pri[$issues->priority]);
+	$prior = str_replace("8080","9080",$priex[0]);
+	
+	//icon types
+	$typ = explode(",",$issuetype[$issues->type]);
+	$typs = str_replace("8080","9080",$typ[0]);
+	
+	//icon status
+	$sta = explode(",",$statuses[$issues->status]);
+	$stat = str_replace("8080","9080",$sta[0]);
+	
+	if($res[$issues->resolution] == NULL){
+		$resol = "<div class='red'>UNRESOLVED</div>"; 		
+	}else{
+		$resol = $res[$issues->resolution];
+	}
+	
+
+   	$body.= "<div class='tablediv'>";
+	$body.= "<div class='rowdiv'>";
+	$body.= "<div class='celldiv'><b>Summary :</b></div>";
+	$body.= "<div class='celldiv'>".$issues->summary."</div>";
+	$body.= "<div class='celldiv'><b>Assignee :</b></div>";
+	$body.= "<div class='celldiv'>".$issues->assignee."</div>";
+	$body.= "</div>";
+	$body.= "<div class='rowdiv'>";
+	$body.= "<div class='celldiv'><b>Key :</b></div>";
+	$body.= "<div class='celldiv'>".$issues->key."</div>";
+	$body.= "<div class='celldiv'><b>Created :</b></div>";
+	$body.= "<div class='celldiv'>".format_date(strtotime($issues->created),'custom','d/m/Y g:i A')."</div>";
+	$body.= "</div>";
+	$body.= "<div class='rowdiv'>";
+	$body.= "<div class='celldiv'><b>Status :</b></div>";
+	$body.= "<div class='celldiv'><img src='".$stat."'> ".$sta[1]."</div>";
+	$body.= "<div class='celldiv'><b>Update :</b></div>";
+	$body.= "<div class='celldiv'>".format_date(strtotime($issues->updated),'custom','d/m/Y g:i A')."</div>";
+	$body.= "</div>";
+	$body.= "<div class='rowdiv'>";
+	$body.= "<div class='celldiv'><b>Priority :</b></div>";
+	$body.= "<div class='celldiv'><img src='".$prior."'> ".$priex[1]."</div>";
+	$body.= "</div>";
+	$body.= "<div class='rowdiv'>";
+	$body.= "<div class='celldiv'><b>Resolution :</b></div>";
+	$body.= "<div class='celldiv'>".$resol."</div>";
+	$body.= "</div>";
+	$body.= "<div class='rowdiv'>";
+	$body.= "<div class='celldiv'><b>Description :</b></div>";
+	$body.= "</div>";
+	$body.= "<div>".$issues->description."</div>";
+	$body.= "</div>";
+	
+    $fieldset = array(
+      '#title' => $title,
+      '#collapsible' => FALSE,
+      '#collapsed' => FALSE,
+      '#value' => $body);
+
+    $items.="<h2>Issue Details</h2>";
+      
+	  $nav1 = l("Issue", "jira_soap", array('attributes' => array('title'=>'Back to List Issue'), 'absolute' => TRUE, 'html' => TRUE));
+      $nav2 = l("Issue Details", "jira_soap/issue/$id", array('attributes' => array('title'=>'Details Issue'), 'absolute' => TRUE, 'html' => TRUE));
+	 
+	$items.= $nav1." >> ".$nav2;
+    $items.= theme('fieldset', $fieldset);
+	$items.= "<div><h2>Comments</h2></div>";
+	
+	//GET COMMENTS
+	$comments = $client->getComments($token,$issues->key);
+	$num = 0;
+	foreach ($comments as $comment) {
+		
+		if(ereg('#',$comment->body)){
+			
+    		if($num%2==0){
+				$items.= "<div class='comment-even'>";
+			}else{
+				$items.= "<div class='comment-odd'>";
+			}
+			$items.= "<div class='header-comment'><b>".substr(strstr($comment->body, '#'),1)."</b> - ".format_date(strtotime($comment->created),'custom','d/m/Y g:i A')."</div>";	
+    		$items.= "<div>".strstr($comment->body, '#',true)."</div></div>";	
+			
+	    	
+		}else{
+			if($num%2==0){
+				$items.= "<div class='comment-even'>";
+			}else{
+				$items.= "<div class='comment-odd'>";
+			}
+			$items.= "<div class='header-comment'><b>".$comment->author."</b> - ".format_date(strtotime($comment->created),'custom','d/m/Y g:i A')."</div>";
+	    	$items.= "<div>".$comment->body."</div></div>";
+		}
+		$num++;
+	}	
+ 	$items.= drupal_get_form('jira_page_form_comment');
+	return $items; 
+	
+	}catch(Exception $e){
+		return t('SOAP ERROR jira_page_issue');	
+	}
+}
+
+/*
+ * HOOK CREATE COMMENT FORM ON ISSUE DETAILS 
+ */
+function jira_page_form_comment() {
+	  $form['issueid'] = array(
+	    '#type' => 'hidden',
+	    '#value' => arg(2),
+	    '#size' => 20, 
+	  );
+	 $form['author'] = array(
+	    '#type' => 'hidden',
+	    '#value' => DRUPAL_USERNAME,
+	    '#size' => 20, 
+	  );
+	  $form['comment'] = array(
+	    '#type' => 'textarea',
+	    '#title' => t('Add Comment'),
+	  );	 
+	$form['submit'] = array(
+	    '#type' => 'submit',
+	    '#value' => t('Save'),
+	  );
+	  return $form;
+}
+
+/*
+* SUBMIT COMMENT FORM 
+*/
+function jira_page_form_comment_submit($form, $form_values) {
+
+try{
+	$client = new SoapClient(JIRA_SOAP_SERVER);
+	$token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+
+	$form_id = $form_values['values'];  
+	$author = $form_id['author'];
+	$comment = $form_id['comment'];
+	$issueid = $form_id['issueid'];
+	
+	   if ($token){
+		 	$issuekey = $client->getIssueById($token,$issueid);	
+		    $key = $issuekey->key;
+		       
+			$rIssue="";
+		    $rIssue['author']  = $author;
+		    $rIssue['body']= $comment."\n#".DRUPAL_USERNAME;
+		        
+			$client->addComment($token,$key,$rIssue);
+			$client->logout (JIRA_SOAP_USERNAME);
+	    }else{
+	        echo "ERROR: Cannot log in!";
+	    }
+
+	}catch(Exception $e){
+		return t('SOAP ERROR jira_page_form_comment_submit');
+	}
+}
+
+/*
+* PAGE CALLBACK ISSUE EDIT 
+*/
+function jira_page_issue_edit(){
+	return drupal_get_form('jira_page_form_issue_edit');
+}
+
+/*
+* PAGE CALLBACK ISSUE DELETE 
+*/
+function jira_page_issue_del(){
+
+try{
+	$client = new SoapClient(JIRA_SOAP_SERVER);
+	$token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+	//GET ISSUE BY ID
+	$issues = $client->getIssueById($token,arg(2));
+	
+	//GET FULLNAME
+	$getfullnames = $client->getUser($token,JIRA_SOAP_USERNAME);
+	$fullname = array();
+	  foreach ($getfullnames as $getfullname) {
+	    	  $fullname[$getfullnames->name] = $getfullnames->fullname;
+	}
+	
+	//GET ISSUE TYPE
+	$getissueTypes = $client->getIssueTypes($token);
+	$issuetype = array();
+	  foreach ($getissueTypes as $getissueType) {
+	    	  $issuetype[$getissueType->id] = $getissueType->name;
+	}
+	//GET Status
+	$result = $client->getStatuses($token);
+	$statuses = array();
+	foreach ($result as $status) {
+	    $statuses[$status->id] = $status->name;
+	}
+	
+	// GET RESOLUTION
+	$resolutions = $client->getResolutions($token);
+	$res = array();
+	foreach ($resolutions as $resolution) {
+	    $res[$resolution->id] = $resolution->name;
+	}
+
+		$items.= "<table>";
+		$items.= "<tr><td colspan=3><b>Summary</b> : ".$issues->summary."<td></tr>";
+		$items.= "<tr><td><b>Project Name</b> : ".$issues->project."<td><td><b>Key</b> : #".$issues->key."<td><td><b>Assignee</b> : ".$fullname[$issues->assignee]."</td></tr>";
+		$items.= "<tr><td><b>Type</b> : ".$issuetype[$issues->type]."<td><td><b>Status</b> : ".$statuses[$issues->status]."<td><td><b>Reporter</b> : ".$issues->reporter."</td></tr>";
+		$items.= "<tr><td><b>Priority</b> : ".$issues->priority."<td><td><b>Resolution</b> : ".$res[$issues->resolution]."<td></tr>";
+		$items.= "<tr><td colspan=3><b>Environment</b> : ".$issues->environment."</td></tr>";
+		$items.= "<tr><td colspan=3><b>Description</b> : ".$issues->description."</td></tr>";
+		$items.= "</table>";
+	
+		$items.= "<table>";
+		$items.= "<tr><td colspan=3><h1>Comments</h1><td></tr>";
+		
+		//GET COMMENTS
+		$comments = $client->getComments($token,$issues->key);
+		foreach ($comments as $comment) {
+		    $items.= "<tr><td><b>".$comment->author."</b> - ".format_date(strtotime($comment->created),'custom','d/m/Y g:i A')."</td></tr>";
+		    $items.= "<tr><td>".$comment->body."</b></td></tr>";
+		}		
+		$items.= "</table>";
+		$items.= drupal_get_form('jira_page_form_issue_del');
+		return $items; 
+	}catch(Exception $e){
+		return t('SOAP ERROR jira_page_issue_del');
+	}
+}
+
+/*
+* HOOK FORM ISSUE EDIT 
+*/
+function jira_page_form_issue_edit(){
+
+try{
+		$client = new SoapClient(JIRA_SOAP_SERVER);
+		$token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+		
+		//GET ISSUE BY ID
+		$issue = $client->getIssueById($token,arg(2));
+	
+		$form['project'] = array(
+			'#type' => 'textfield',
+		    '#title' => t('Projects'),
+		    '#default_value' => $issue->project,
+		    '#attributes' => array('disabled' => 'disabled'),
+		    '#size' => 20, 
+		);
+		$form['type'] = array(
+		    '#type' => 'textfield',
+		    '#title' => t('Issue Types'),
+		    '#default_value' => $issue->type,
+		    '#attributes' => array('disabled' => 'disabled'),
+		    '#size' => 20, 
+		);
+		$form['summary'] = array(
+		    '#type' => 'textfield',
+		    '#title' => t('Summary'),
+		    '#default_value' => $issue->summary,
+		);
+		$prio = drupal_map_assoc(array(1,2,3,4,5));
+		$form['prio'] = array(
+		    '#type' => 'select',
+		    '#options' => $prio,
+		    '#default_value'=> $issue->priority,
+		    '#title' => t('Priority'),
+		);
+		$form['description'] = array(
+		    '#type' => 'textarea',
+		    '#title' => t('Description'),
+		    '#default_value' => $issue->description,
+		);
+		$form['submit'] = array(
+		    '#type' => 'submit',
+		    '#value' => t('Update'),
+		);
+		return $form;
+	
+	}catch(Exception $e){
+		return t('SOAP ERROR jira_page_form_issue_edit');
+	}
+}
+
+/*
+* HOOK FORM ISSUE DELETE 
+*/
+function jira_page_form_issue_del(){
+	$form['issueid'] = array(
+	    '#type' => 'hidden',
+	    '#value' => arg(2),
+	    '#size' => 20, 
+	  ); 
+	return confirm_form($form,
+                  "<h1>Apakah anda yakin akan menghapus data issue di bawah ini?<h1>",
+                  'jira_soap',
+                  '<b>Data yang sudah dihapus tidak dapat dipulihkan kembali.</b>',
+                  'Hapus',
+                  'Batal');
+}
+
+/*
+* SUBMIT ISSUE EDIT FORM 
+*/
+function jira_page_form_issue_edit_submit($form, $form_values){
+  
+try{  
+  $client = new SoapClient(JIRA_SOAP_SERVER);
+  $token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+  $form_id = $form_values['values'];
+  $summary = $form_id['summary'];
+  $priority = $form_id['prio'];
+  $desc = $form_id['description'];
+
+
+	    $token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+	    $issuekey = $client->getIssueById($token,arg(2));	
+    	$key = $issuekey->key;
+
+		$rIssue[]  = array("id"=>"summary","values" => array($summary));
+		$rIssue[]  = array("id"=>"priority","values" => array($priority));
+		$rIssue[]  = array("id"=>"description","values" => array($desc)); 
+		  
+	    $updateissue = $client->updateIssue($token,$key,$rIssue);
+	
+		drupal_set_message("Issue Key : ".$key." telah di Update");
+		drupal_goto('jira_soap');
+	}catch(Exception $e){
+		return t('SOAP ERROR jira_page_form_issue_edit_submit');
+	}
+}
+
+/*
+* SUBMIT ISSUE DELETE FORM 
+*/
+function jira_page_form_issue_del_submit($form, $form_values){
+
+try{
+  $client = new SoapClient(JIRA_SOAP_SERVER);
+  $token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+  $form_id = $form_values['values'];  
+  $confirm = $form_id['confirm'];
+  $issueid = $form_id['issueid'];
+
+	    $token = $client->login(JIRA_SOAP_USERNAME, JIRA_SOAP_PASSWORD);
+	    $issuekey = $client->getIssueById($token,$issueid);	
+    	$key = $issuekey->key;
+	    $deleteissue = $client->deleteIssue($token,$key);
+			
+		drupal_set_message("Issue Key : ".$key." telah di Hapus");
+		drupal_goto('jira_soap');
+	}catch(Exception $e){
+		return t('SOAP ERROR jira_page_form_issue_del_submit'); 	
+	}
+}
+
+	

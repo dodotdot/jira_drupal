@@ -1,0 +1,6 @@
+; $Id$
+name = Jira Soap
+description = A soap client for JIRA
+core = 6.x
+package= Jira Soap Client Issue
+writer module = Dodo(rm.herwidodo@gmail.com)
